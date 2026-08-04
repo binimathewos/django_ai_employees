@@ -26,9 +26,6 @@ def chat(request, order_id):
         # Send the user message to the AI agent for processing and get a response
         reply = run_support_agent(conversation.id, order.id, request.user.id)
 
-        # Debugging line to print the AI agent's reply
-        print(f"AI Agent Reply: {reply}")
-
         # Store the AI agent's response in the database
         Message.objects.create(conversation=conversation,
                                role="assistant", content=reply)
