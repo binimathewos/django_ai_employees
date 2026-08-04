@@ -319,9 +319,17 @@
           <h6>Support Agent</h6>
         </div>
         <div id="chat-messages" class="chat-messages p-3 d-flex flex-column gap-2">
+          {% if conversation %}
+            {% for msg in prev_messages %}
+          <div class="{% if msg.role == 'assistant' %}agent-message{% else %}user-message{% endif %} p-2 px-3" style="font-size: 13px; max-width: 85%;">
+            {{ msg.content }}
+          </div>
+            {% endfor %}
+          {% else %}
           <div class="agent-message p-2 px-3" style="font-size: 13px; max-width: 85%;">
             Hi User, I am Maya. How can I assist you with your order today?
           </div>
+          {% endif %}
         </div>
         <div class="card-footer d-flex gap-2">
           <input type="text" id="chat-input" class="form-control form-control-sm" placeholder="Type your message..." required>
@@ -335,6 +343,20 @@
 
 <script type="text/javascript">
 
+  function addTyping() {
+    const chatMessages = document.getElementById('chat-messages');
+    chatMessages.insertAdjacentHTML('beforeend', `
+      <div id="typing-indicator" class="agent-message p-2 px-3" style="font-size: 13px; max-width: 85%;">Typing...</div>`);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+
+  function removeTyping() {
+    const typingIndicator = document.getElementById('typing-indicator');
+    if (typingIndicator) {
+      typingIndicator.remove();
+    }
+  }
+
   function showChat() {
     const helpCard = document.getElementById('help-card');
     helpCard.style.display = 'none';
@@ -343,20 +365,57 @@
     chatBox.style.display = 'flex';
   }
 
-  function sendMessage(messageType = 'user') {
+  async function sendMessage() {
     const input = document.getElementById('chat-input');
     const message = input.value.trim();
-    if (message) {
-      const chatMessages = document.getElementById('chat-messages');
-      const userMessage = document.createElement('div');
-      userMessage.className = messageType === 'agent' ? 'agent-message p-2 px-3' : 'user-message p-2 px-3';
-      userMessage.style.fontSize = '13px';
-      userMessage.style.maxWidth = '85%';      
-      userMessage.textContent = message;
-      chatMessages.appendChild(userMessage);
-      input.value = '';
-      chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    if (!message) return;
+
+    appendMessage(message);
+    input.value = '';
+    input.disabled = true;
+
+    const typingTimeout = setTimeout(() => addTyping(), 1000); // Show typing indicator after a short delay
+
+    // Send message to django backend for processing
+    try {
+      const response = await fetch("/support/chat/{{ order.id }}/", {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({ message: message })
+      });
+
+      const data = await response.json();
+
+      removeTyping();
+      
+      if (data.reply) {
+        console.log('Received reply:', data.reply);
+        appendMessage(data.reply, 'assistant');
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      appendMessage("Sorry, there was an error processing your message. Please try again later.", 'assistant');
+    } finally {
+      clearTimeout(typingTimeout);
+      removeTyping();
+      input.disabled = false;
+      input.focus();
     }
+  }
+
+  function appendMessage(message, messageType = 'user') {
+    const chatMessages = document.getElementById('chat-messages');
+    const userMessage = document.createElement('div');
+    userMessage.className = messageType === 'assistant' ? 'agent-message p-2 px-3' : 'user-message p-2 px-3';
+    userMessage.style.fontSize = '13px';
+    userMessage.style.maxWidth = '85%';      
+    userMessage.textContent = message;
+    chatMessages.appendChild(userMessage);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
   }
 
   document.getElementById('chat-input').addEventListener('keypress', function(event) {
