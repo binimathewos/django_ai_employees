@@ -56,7 +56,7 @@
         <!-- Log entry -->
          {% for log in agentLogs %}
         <div>
-          <div class="d-flex align-items-center gap-2 mb-1">
+          <div class="d-flex align-items-center gap-2">
             {% if log.event_type == 'tool_call' %}
             <span class="badge bg-primary" style="font-size:10px;">tool_call</span>
             {% elif log.event_type == 'tool_result' %}
@@ -78,6 +78,103 @@
   </div>
 </div>
 <script type="text/javascript">
+  const convesationId = {{ conversation.id }};
+  const source = new EventSource(`/support/dashboard/stream/${convesationId}`)
+
+  source.onmessage = (e) => {
+    const event = JSON.parse(e.data);
+
+    if(event.type == "done"){
+      hideSpinner();
+      source.close();
+      return;
+    }
+
+    hideSpinner();
+
+    if(event.type == "user_message"){
+      appendTranscript("user", event.message, event.name);
+    } else if(event.type == "final") {
+      appendLog(event.type, event.message);
+      appendTranscript("agent", event.message);
+    } else {
+      appendLog(event.type, event.message);
+    }
+
+    if(event.type !== "final"){
+      showSpinner();
+    };    
+  }
+
+  source.onerror = () => {
+    console.log("SSE connection closed");
+    source.close()
+  }
+  
+  function appendTranscript(role, message, name = ""){
+    const chatTranscript = document.getElementById("chat-transcript");
+    const isAgent = role == "agent";
+
+    chatTranscript.insertAdjacentHTML("beforeend", `
+      <div class="${isAgent ? "text-end" : "" }">
+        <div style="font-size:11px;color:#adb5bd;margin-bottom:3px;">${isAgent ? "Maya (AI Agent)": name }</div>
+        <div class="rounded p-2 px-3 d-inline-block text-start" style="font-size:13px;max-width:85%;${isAgent ? "background:#ede9fe;color:#3C3489;": ""}">${message}</div>
+      </div>
+    `);
+
+    chatTranscript.scrollTop = chatTranscript.scrollHeight;
+  }
+
+  function appendLog(type, message){
+    const agentActivity = document.getElementById("agent-activity");
+    const time = new Date().toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"})
+
+    const badgeColors = {
+      "tool_call": "bg-primary",
+      "tool_result": "bg-secondary",
+      "manager": "bg-warning text-dark",
+      "risk": "bg-danger",
+      "final": "bg-success"
+    };
+
+    const badgeColor = badgeColors[type] || "bg-secondary";
+
+    agentActivity.insertAdjacentHTML("beforeend", `
+        <div>
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <span class="badge ${badgeColor}" style="font-size:10px;">${type}</span>
+            <span class="text-muted" style="font-size:11px;">${time}</span>
+          </div>
+          <p class="mb-0 text-muted" style="font-size:12px;">${message}</p>
+        </div>    
+    `);
+
+    agentActivity.scrollTop = agentActivity.scrollHeight;
+  }
+
+  function showSpinner(){
+    const agentActivity = document.getElementById("agent-activity");
+
+    if (agentActivity.querySelector(".agent-spinner")) {
+        return; // Spinner already exists
+    }
+
+    agentActivity.insertAdjacentHTML("afterend", `
+      <div id="agent-spinner" class="d-flex align-items-center p-2">
+          <div class="spinner-border spinner-border-sm text-primary flex-shrink-0"
+              role="status"
+              aria-hidden="true">
+          </div>
+      </div>  
+    `);
+
+    agentActivity.scrollTop = agentActivity.scrollHeight;
+  }
+
+  function hideSpinner(){
+    document.getElementById("agent-spinner")?.remove();
+  }
+
   document.addEventListener("DOMContentLoaded", () => {
     const chatTranscript = document.getElementById("chat-transcript");
     if(chatTranscript) chatTranscript.scrollTop = chatTranscript.scrollHeight;

@@ -1,9 +1,10 @@
 import json
 import time
-from django.http import JsonResponse
+from django.http import JsonResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, render
 from orders.models import Order
-from support.agents import run_support_agent
+from .agents import run_support_agent
+from .event_queue import publish, subscribe, unsubscribe
 from .models import Conversation, Message
 from django.contrib.admin.views.decorators import staff_member_required
 
@@ -24,6 +25,9 @@ def chat(request, order_id):
         Message.objects.create(conversation=conversation,
                                role="user", content=user_message)
 
+        publish(conversation.id, {
+                "type": "user_message", "message": user_message, "name": request.user.first_name})
+
         # Send the user message to the AI agent for processing and get a response
         reply = run_support_agent(conversation.id, order.id, request.user.id)
 
@@ -43,6 +47,7 @@ def dashboard(request):
     return render(request, "support/dashboard.html", context)
 
 
+@staff_member_required
 def conversation_detail(request, conversation_id):
     conversation = get_object_or_404(Conversation, id=conversation_id)
     messages = conversation.messages.order_by("created_at")
@@ -55,3 +60,19 @@ def conversation_detail(request, conversation_id):
     }
 
     return render(request, "support/conversation_detail.html", context)
+
+
+@staff_member_required
+def conversation_stream(request, conversation_id):
+    def event_stream(conversation_id):
+        q = subscribe(conversation_id)
+
+        try:
+            while True:
+                event = q.get()  # wait for the next event
+
+                yield f"data: {json.dumps(event)}\n\n"
+        finally:
+            unsubscribe(conversation_id, q)
+
+    return StreamingHttpResponse(event_stream(conversation_id), content_type="text/event-stream")
