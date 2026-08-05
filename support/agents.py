@@ -2,7 +2,7 @@ import json
 from anthropic import Anthropic
 from django.conf import settings
 from support.models import Conversation, Message, AgentLog
-from .tools import get_order_details, get_refund_history, check_delivery_status, get_customer_risk_profile
+from .tools import get_order_details, get_refund_history, check_delivery_status, get_customer_risk_profile, search_knowledge_base
 from .event_queue import publish, DONE
 
 client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
@@ -146,6 +146,20 @@ SUPPORT_TOOLS = [
             },
             "required": ["case_summary"]
         }
+    },
+    {
+        "name": "search_knowledge_base",
+        "description": "Search CoolBreeze AC company documents including refund policy, warranty policy, and product FAQs. Use this when customer asks about company policies, warranty coverage, warranty claims, refund eligibility, or any general product information that requires accurate company documentation.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "The search query to find relevant information from company documents. Be specific — for example 'refund eligibility within 30 days' instead of just 'refund'."
+                }
+            },
+            "required": ["query"]
+        }
     }
 ]
 
@@ -198,6 +212,9 @@ def execute_tool(tool_name, tool_input, conversation_id=None):
 
     if tool_name == "get_customer_risk_profile":
         return get_customer_risk_profile(tool_input["user_id"])
+
+    if tool_name == "search_knowledge_base":
+        return search_knowledge_base(tool_input["query"])
 
     if tool_name == "escalate_to_manager":
         case_summary = tool_input["case_summary"]
