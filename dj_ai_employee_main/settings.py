@@ -18,11 +18,6 @@ from decouple import config
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
-print("RAILWAY DEBUG - env keys with SECRET:",
-      [k for k in os.environ if "SECRET" in k])
-print("RAILWAY DEBUG - direct lookup:", os.environ.get("SECRET_KEY"))
-
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
