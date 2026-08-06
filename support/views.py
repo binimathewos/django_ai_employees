@@ -7,6 +7,7 @@ from .agents import run_support_agent
 from .event_queue import publish, subscribe, unsubscribe
 from .models import Conversation, Message
 from django.contrib.admin.views.decorators import staff_member_required
+from .langchain_agents import run_support_agent_langchain
 
 
 def chat(request, order_id):
@@ -29,7 +30,13 @@ def chat(request, order_id):
                 "type": "user_message", "message": user_message, "name": request.user.first_name})
 
         # Send the user message to the AI agent for processing and get a response
-        reply = run_support_agent(conversation.id, order.id, request.user.id)
+
+        # raw implementations
+        # reply = run_support_agent(user_message, conversation.id, order.id, request.user.id)
+
+        # lang-chain implementations
+        reply = run_support_agent_langchain(
+            user_message, conversation.id, order.id, request.user.id)
 
         # Store the AI agent's response in the database
         Message.objects.create(conversation=conversation,

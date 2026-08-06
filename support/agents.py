@@ -5,6 +5,7 @@ from support.models import Conversation, Message, AgentLog
 from .tools import get_order_details, get_refund_history, check_delivery_status, get_customer_risk_profile, search_knowledge_base
 from .event_queue import publish, DONE
 
+# init Anthropic Client
 client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
 
 anthropic_model = settings.ANTHROPIC_MODEL
@@ -32,10 +33,6 @@ Important rules:
 - If refund decision is needed, tell customer you are checking with your team
 - Never use bold text, bullet points or any markdown formatting. Plain text only.
 - Keep your response concise and professional. Maximum 3-4 sentences. No long paragraphs.
-
-Context:
-- Use Order #{order_id} associated with User ID {user_id}.
-
 """
 
 MANAGER_SYSTEM_PROMPT = """
@@ -229,7 +226,7 @@ def execute_tool(tool_name, tool_input, conversation_id=None):
 # AGENT LOOP --> The loop that will keep the agent running until the task is completed.
 
 
-def run_support_agent(conversation_id, order_id, user_id):
+def run_support_agent(user_message, conversation_id, order_id, user_id):
     conversation = Conversation.objects.get(id=conversation_id)
 
     messages = []
@@ -244,8 +241,8 @@ def run_support_agent(conversation_id, order_id, user_id):
         response = client.messages.create(
             model=anthropic_model,
             max_tokens=1024,
-            system=SUPPORT_SYSTEM_PROMPT.format(
-                order_id=order_id, user_id=user_id),
+            system=SUPPORT_SYSTEM_PROMPT +
+            f"\n\nContext: This conversation is about Order #{order_id}, user: {user_id}",
             tools=SUPPORT_TOOLS,
             messages=messages,
         )
